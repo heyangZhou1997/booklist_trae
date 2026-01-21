@@ -6,7 +6,6 @@ import { cn } from '../lib/utils'
 export function Unpurchased() {
   const { books, fetchBooks, isLoading, prices, refreshPrice, deleteBook, updateBook } = useBookStore()
   const [refreshingIds, setRefreshingIds] = useState<Record<string, boolean>>({})
-  const [showExtraInfo, setShowExtraInfo] = useState<Record<string, boolean>>({})
   const [bindState, setBindState] = useState<{
     open: boolean
     bookId?: string
@@ -145,15 +144,23 @@ export function Unpurchased() {
           清单为空，快去"搜索添加"加几本想买的书吧！
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
           {books.map(book => {
             const price = prices[book.id]
             const isRefreshing = refreshingIds[book.id]
-            const isExtra = showExtraInfo[book.id]
+            const listPrice =
+              book.list_price && isFinite(Number(book.list_price)) && Number(book.list_price) > 0
+                ? Number(book.list_price)
+                : null
+            const displayOriginal =
+              price?.original_price && isFinite(Number(price.original_price)) && Number(price.original_price) > 0
+                ? Number(price.original_price)
+                : listPrice
+            const showOriginalWithPrice = displayOriginal && price && displayOriginal > price.price
 
             return (
               <div key={book.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-all p-2 flex gap-2 group">
-                <div className="relative w-[84px] h-[112px] flex-shrink-0 min-w-0">
+                <div className="relative w-[84px] h-[120px] flex-shrink-0 min-w-0">
                   <div className="w-full h-full bg-slate-100 rounded-md overflow-hidden">
                       {book.cover_url ? (
                         <img
@@ -197,54 +204,39 @@ export function Unpurchased() {
                     </button>
                   </div>
 
-                <div className="min-w-0 flex-1 flex flex-col h-[112px]">
+                <div className="min-w-0 flex-1 flex flex-col h-[120px]">
                   <h3 className="font-bold text-sm line-clamp-1 leading-tight" title={book.title}>
                       {book.title}
                     </h3>
 
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setShowExtraInfo(prev => ({ ...prev, [book.id]: !prev[book.id] }))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          setShowExtraInfo(prev => ({ ...prev, [book.id]: !prev[book.id] }))
-                        }
-                      }}
-                    className="mt-1 text-xs text-slate-600 select-none cursor-pointer"
-                      title="点击切换展示内容"
-                    >
-                      <div className="space-y-0.5 h-[42px]">
+                    <div className="mt-1 text-xs text-slate-600">
+                      <div className="space-y-0.5 h-[56px]">
                         <p className="truncate" title={book.author}>{book.author}</p>
-                        {isExtra ? (
-                          <>
-                            <p className="truncate text-slate-500">{book.isbn ? `ISBN: ${book.isbn}` : 'ISBN: 无'}</p>
-                            <p className="truncate text-slate-500 opacity-0">占位</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="truncate text-slate-500" title={book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}>
-                              {book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}
-                            </p>
-                            <p className={cn('truncate text-slate-500', !book.translator && 'opacity-0')} title={book.translator ? `译者: ${book.translator}` : ''}>
-                              {book.translator ? `译: ${book.translator}` : '占位'}
-                            </p>
-                          </>
-                        )}
+                        <p className="truncate text-slate-500" title={book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}>
+                          {book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}
+                        </p>
+                        <p className="truncate text-slate-500" title={book.translator ? `译者: ${book.translator}` : ''}>
+                          {book.translator ? `译者: ${book.translator}` : '译者: 无'}
+                        </p>
+                        <p className="truncate text-slate-500" title={book.isbn ? `ISBN: ${book.isbn}` : 'ISBN: 无'}>
+                          {book.isbn ? `ISBN: ${book.isbn}` : 'ISBN: 无'}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="mt-auto pt-2 flex items-center justify-between">
+                    <div className="mt-auto pt-1 flex items-center justify-between">
                       <div className="min-w-0">
                         {price ? (
                           <div className="truncate">
                             <span className="text-sm font-bold text-red-600">¥{price.price}</span>
-                            {!!(price.original_price && Number(price.original_price) > 0) && (
-                              <span className="text-[10px] text-slate-400 line-through ml-2">¥{price.original_price}</span>
+                            {!!showOriginalWithPrice && (
+                              <span className="text-[10px] text-slate-400 line-through ml-2">¥{displayOriginal}</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400">价格未知</span>
+                          <span className="text-xs text-slate-400">
+                            {listPrice ? `定价 ¥${listPrice}` : '价格未知'}
+                          </span>
                         )}
                       </div>
 

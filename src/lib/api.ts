@@ -43,6 +43,9 @@ export const api = {
   searchBooks: (query: string) =>
     window.ipcRenderer.invoke('search-books', query) as Promise<any[]>,
 
+  fetchDoubanDetails: (detailUrl: string) =>
+    window.ipcRenderer.invoke('fetch-douban-details', detailUrl) as Promise<any>,
+
   fetchJdPrice: (isbn: string) =>
     window.ipcRenderer.invoke('fetch-jd-price', isbn) as Promise<any>,
 

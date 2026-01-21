@@ -4,6 +4,7 @@ export interface DoubanSubjectDetails {
   isbn?: string
   publisher?: string
   translator?: string
+  listPrice?: number
 }
 
 export async function fetchDoubanSubjectDetails(detailUrl: string): Promise<DoubanSubjectDetails> {
@@ -50,6 +51,16 @@ export async function fetchDoubanSubjectDetails(detailUrl: string): Promise<Doub
 
       const translatorMatch = infoText.match(/译者[:：]\s*([^\n\r]+)/)
       if (translatorMatch?.[1]) details.translator = translatorMatch[1].trim()
+
+      const priceMatch = infoText.match(/定价[:：]\s*([^\n\r]+)/)
+      if (priceMatch?.[1]) {
+        const raw = priceMatch[1].trim()
+        const m = raw.match(/(\d+(?:\.\d{1,2})?)/)
+        if (m?.[1]) {
+          const n = parseFloat(m[1])
+          if (isFinite(n) && n > 0) details.listPrice = n
+        }
+      }
     }
 
     return details

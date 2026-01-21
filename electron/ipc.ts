@@ -53,6 +53,7 @@ export function setupIpc() {
       if (!bookData.isbn && details.isbn) bookData.isbn = details.isbn
       if (!bookData.publisher && details.publisher) bookData.publisher = details.publisher
       if (!bookData.translator && details.translator) bookData.translator = details.translator
+      if (!bookData.list_price && details.listPrice) bookData.list_price = details.listPrice
     }
 
     if (bookData.isbn) {
@@ -88,8 +89,8 @@ export function setupIpc() {
 
     const id = randomUUID()
     const stmt = db.prepare(`
-      INSERT INTO books (id, isbn, title, author, translator, publisher, cover_url, description, publish_year, page_count, status)
-      VALUES (@id, @isbn, @title, @author, @translator, @publisher, @cover_url, @description, @publish_year, @page_count, @status)
+      INSERT INTO books (id, isbn, title, author, translator, publisher, list_price, cover_url, description, publish_year, page_count, status)
+      VALUES (@id, @isbn, @title, @author, @translator, @publisher, @list_price, @cover_url, @description, @publish_year, @page_count, @status)
     `)
     
     // 确保空 ISBN 转为 null，避免空字符串触发唯一性冲突
@@ -187,6 +188,10 @@ export function setupIpc() {
   // --- External Services ---
   ipcMain.handle('search-books', async (event, query) => {
     return searchGoogleBooks(query)
+  })
+
+  ipcMain.handle('fetch-douban-details', async (event, detailUrl) => {
+    return fetchDoubanSubjectDetails(detailUrl)
   })
 
   ipcMain.handle('fetch-jd-price', async (event, isbn) => {

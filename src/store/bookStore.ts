@@ -139,6 +139,12 @@ export const useBookStore = create<BookState>((set, get) => ({
         return { status: 'no_price', reason: '缺少 ISBN 或京东商品链接，无法获取价格' }
       }
 
+      const book = get().books.find(b => b.id === bookId)
+      const bookListPrice =
+        book?.list_price && isFinite(Number(book.list_price)) && Number(book.list_price) > 0
+          ? Number(book.list_price)
+          : null
+
       const priceInfo = jdSku
         ? await withTimeout(api.fetchJdPriceBySku(jdSku), 45000)
         : await withTimeout(api.fetchJdPrice(isbn as string), 45000)
@@ -151,16 +157,17 @@ export const useBookStore = create<BookState>((set, get) => ({
             200000
           )
           if (interactive && !interactive.authRequired && !interactive.noPriceReason) {
-            const original = interactive.originalPrice ?? null
+            const originalFromJd = interactive.originalPrice ?? null
+            const baseOriginal = originalFromJd ?? bookListPrice
             if (interactive.sku) {
               get().updateBook(bookId, { jd_sku: interactive.sku, jd_url: interactive.url }).catch(() => {})
             }
             const history = await api.addPriceHistory({
               book_id: bookId,
               price: interactive.price,
-              original_price: original,
+              original_price: baseOriginal,
               in_stock: interactive.inStock,
-              discount_rate: original ? Math.round((1 - interactive.price / original) * 100) : 0
+              discount_rate: baseOriginal ? Math.round((1 - interactive.price / baseOriginal) * 100) : 0
             })
             set(state => ({
               prices: { ...state.prices, [bookId]: history }
@@ -194,16 +201,17 @@ export const useBookStore = create<BookState>((set, get) => ({
               : '暂时无法获取京东价格，建议手动绑定商品链接。',
           }
         }
-        const retriedOriginal = retried.originalPrice ?? null
+        const retriedOriginalFromJd = retried.originalPrice ?? null
+        const retriedBaseOriginal = retriedOriginalFromJd ?? bookListPrice
         if (retried.sku) {
           get().updateBook(bookId, { jd_sku: retried.sku, jd_url: retried.url }).catch(() => {})
         }
         const history = await api.addPriceHistory({
           book_id: bookId,
           price: retried.price,
-          original_price: retriedOriginal,
+          original_price: retriedBaseOriginal,
           in_stock: retried.inStock,
-          discount_rate: retriedOriginal ? Math.round((1 - retried.price / retriedOriginal) * 100) : 0
+          discount_rate: retriedBaseOriginal ? Math.round((1 - retried.price / retriedBaseOriginal) * 100) : 0
         })
         set(state => ({
           prices: { ...state.prices, [bookId]: history }
@@ -227,7 +235,8 @@ export const useBookStore = create<BookState>((set, get) => ({
         }
       }
       if (priceInfo) {
-        const original = priceInfo.originalPrice ?? null
+        const originalFromJd = priceInfo.originalPrice ?? null
+        const baseOriginal = originalFromJd ?? bookListPrice
         if (priceInfo.sku) {
           get().updateBook(bookId, { jd_sku: priceInfo.sku, jd_url: priceInfo.url }).catch(() => {})
         }
@@ -235,9 +244,9 @@ export const useBookStore = create<BookState>((set, get) => ({
         const history = await api.addPriceHistory({
           book_id: bookId,
           price: priceInfo.price,
-          original_price: original,
+          original_price: baseOriginal,
           in_stock: priceInfo.inStock,
-          discount_rate: original ? Math.round((1 - priceInfo.price / original) * 100) : 0
+          discount_rate: baseOriginal ? Math.round((1 - priceInfo.price / baseOriginal) * 100) : 0
         })
         // Update local state
         set(state => ({

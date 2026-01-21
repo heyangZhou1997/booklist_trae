@@ -16,6 +16,7 @@ function initDb() {
       author TEXT NOT NULL,
       translator TEXT,
       publisher TEXT,
+      list_price DECIMAL(10,2),
       cover_url TEXT,
       description TEXT,
       publish_year INTEGER,
@@ -75,6 +76,10 @@ function initDb() {
   }
   try {
     db.exec("ALTER TABLE books ADD COLUMN jd_url TEXT");
+  } catch (e) {
+  }
+  try {
+    db.exec("ALTER TABLE books ADD COLUMN list_price DECIMAL(10,2)");
   } catch (e) {
   }
   return db;
@@ -1024,6 +1029,15 @@ async function fetchDoubanSubjectDetails(detailUrl) {
       if (publisherMatch == null ? void 0 : publisherMatch[1]) details.publisher = publisherMatch[1].trim();
       const translatorMatch = infoText.match(/译者[:：]\s*([^\n\r]+)/);
       if (translatorMatch == null ? void 0 : translatorMatch[1]) details.translator = translatorMatch[1].trim();
+      const priceMatch = infoText.match(/定价[:：]\s*([^\n\r]+)/);
+      if (priceMatch == null ? void 0 : priceMatch[1]) {
+        const raw = priceMatch[1].trim();
+        const m = raw.match(/(\d+(?:\.\d{1,2})?)/);
+        if (m == null ? void 0 : m[1]) {
+          const n = parseFloat(m[1]);
+          if (isFinite(n) && n > 0) details.listPrice = n;
+        }
+      }
     }
     return details;
   } catch {
@@ -1065,6 +1079,7 @@ function setupIpc() {
       if (!bookData.isbn && details.isbn) bookData.isbn = details.isbn;
       if (!bookData.publisher && details.publisher) bookData.publisher = details.publisher;
       if (!bookData.translator && details.translator) bookData.translator = details.translator;
+      if (!bookData.list_price && details.listPrice) bookData.list_price = details.listPrice;
     }
     if (bookData.isbn) {
       const existing = db2.prepare("SELECT id FROM books WHERE isbn = ?").get(bookData.isbn);
@@ -1076,8 +1091,8 @@ function setupIpc() {
     }
     const id = crypto.randomUUID();
     const stmt = db2.prepare(`
-      INSERT INTO books (id, isbn, title, author, translator, publisher, cover_url, description, publish_year, page_count, status)
-      VALUES (@id, @isbn, @title, @author, @translator, @publisher, @cover_url, @description, @publish_year, @page_count, @status)
+      INSERT INTO books (id, isbn, title, author, translator, publisher, list_price, cover_url, description, publish_year, page_count, status)
+      VALUES (@id, @isbn, @title, @author, @translator, @publisher, @list_price, @cover_url, @description, @publish_year, @page_count, @status)
     `);
     const safeIsbn = bookData.isbn || null;
     const newBook = { ...bookData, id, isbn: safeIsbn, status: bookData.status || "unpurchased" };
@@ -1153,6 +1168,9 @@ function setupIpc() {
   });
   electron.ipcMain.handle("search-books", async (event, query) => {
     return searchGoogleBooks(query);
+  });
+  electron.ipcMain.handle("fetch-douban-details", async (event, detailUrl) => {
+    return fetchDoubanSubjectDetails(detailUrl);
   });
   electron.ipcMain.handle("fetch-jd-price", async (event, isbn) => {
     try {

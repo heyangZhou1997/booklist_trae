@@ -26,6 +26,7 @@ export function initDb() {
       author TEXT NOT NULL,
       translator TEXT,
       publisher TEXT,
+      list_price DECIMAL(10,2),
       cover_url TEXT,
       description TEXT,
       publish_year INTEGER,
@@ -91,6 +92,12 @@ export function initDb() {
 
     try {
       db.exec("ALTER TABLE books ADD COLUMN jd_url TEXT");
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      db.exec("ALTER TABLE books ADD COLUMN list_price DECIMAL(10,2)");
     } catch (e) {
       // ignore
     }

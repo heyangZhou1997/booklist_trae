@@ -12,6 +12,7 @@ export interface Book {
   page_count?: number
   jd_sku?: string
   jd_url?: string
+  list_price?: number
   status: 'unpurchased' | 'reading' | 'finished'
   purchase_date?: string
   start_reading_date?: string

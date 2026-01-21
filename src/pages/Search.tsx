@@ -1,22 +1,67 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import { useBookStore } from '../store/bookStore'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Plus } from 'lucide-react'
 
+type SearchBook = {
+  title: string
+  author: string
+  translator?: string
+  publisher?: string
+  publishDate?: string
+  description?: string
+  pageCount?: number
+  coverUrl?: string
+  isbn?: string
+  detailUrl?: string
+  listPrice?: number
+}
+
 export function Search() {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<SearchBook[]>([])
   const [loading, setLoading] = useState(false)
   const { addBook } = useBookStore()
   const navigate = useNavigate()
+
+  const resultsKey = useMemo(() => results.map(r => r.detailUrl || `${r.title}|${r.author}`).join('||'), [results])
+
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const tasks = results
+        .filter(r => r.detailUrl && (!r.isbn || !r.publisher || !r.translator || !r.listPrice))
+        .slice(0, 12)
+        .map(async (r) => {
+          try {
+            const details = await api.fetchDoubanDetails(r.detailUrl as string)
+            const patch: Partial<SearchBook> = {}
+            if (!r.isbn && details?.isbn) patch.isbn = details.isbn
+            if (!r.publisher && details?.publisher) patch.publisher = details.publisher
+            if (!r.translator && details?.translator) patch.translator = details.translator
+            if (!r.listPrice && details?.listPrice) patch.listPrice = details.listPrice
+            if (Object.keys(patch).length === 0) return
+            if (cancelled) return
+            setResults(prev => prev.map(x => (x.detailUrl === r.detailUrl ? { ...x, ...patch } : x)))
+          } catch {
+            // ignore
+          }
+        })
+      await Promise.all(tasks)
+    }
+    if (results.length > 0) run()
+    return () => {
+      cancelled = true
+    }
+  }, [resultsKey])
 
   const handleSearch = async () => {
     if (!query.trim()) return
     setLoading(true)
     try {
       const data = await api.searchBooks(query)
-      setResults(data)
+      setResults(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error(error)
     } finally {
@@ -24,7 +69,7 @@ export function Search() {
     }
   }
 
-  const handleAdd = async (book: any) => {
+  const handleAdd = async (book: SearchBook) => {
     try {
       const result = await addBook({
         title: book.title,
@@ -37,6 +82,7 @@ export function Search() {
         isbn: book.isbn,
         detailUrl: book.detailUrl,
         page_count: book.pageCount,
+        list_price: book.listPrice,
         status: 'unpurchased'
       })
       
@@ -88,8 +134,20 @@ export function Search() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-lg truncate" title={book.title}>{book.title}</h3>
                 <p className="text-slate-600 truncate">{book.author}</p>
-                <p className="text-sm text-slate-500 mt-1">{book.publisher} {book.publishDate && `(${book.publishDate.substring(0, 4)})`}</p>
-                {book.isbn && <p className="text-xs text-slate-400 mt-1 font-mono">ISBN: {book.isbn}</p>}
+                <p className="text-sm text-slate-500 mt-1 truncate" title={book.publisher || ''}>
+                  {book.publisher ? `出版社：${book.publisher}` : '出版社：无'}
+                  {book.publishDate && `（${book.publishDate.substring(0, 4)}）`}
+                </p>
+                <p className="text-sm text-slate-500 mt-0.5 truncate" title={book.translator || ''}>
+                  {book.translator ? `译者：${book.translator}` : '译者：无'}
+                </p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+                  <span className="font-mono">{book.isbn ? `ISBN: ${book.isbn}` : 'ISBN: 无'}</span>
+                  <span>{book.listPrice ? `定价: ¥${book.listPrice}` : '定价: 无'}</span>
+                  {typeof book.pageCount === 'number' && book.pageCount > 0 && (
+                    <span>{`页数: ${book.pageCount}`}</span>
+                  )}
+                </div>
                 {book.description && (
                   <p className="text-sm text-slate-500 mt-2 line-clamp-2">{book.description}</p>
                 )}
