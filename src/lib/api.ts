@@ -33,6 +33,21 @@ export const api = {
     
   addSeries: (series: Partial<Series>) => 
     window.ipcRenderer.invoke('add-series', series) as Promise<Series>,
+
+  updateSeries: (series: Partial<Series> & { id: string }) =>
+    window.ipcRenderer.invoke('update-series', series) as Promise<Series>,
+
+  getSeriesWithBooks: () =>
+    window.ipcRenderer.invoke('get-series-with-books') as Promise<any[]>,
+
+  addBookToSeries: (payload: { seriesId: string, bookId: string }) =>
+    window.ipcRenderer.invoke('add-book-to-series', payload) as Promise<boolean>,
+
+  removeBookFromSeries: (payload: { seriesId: string, bookId: string }) =>
+    window.ipcRenderer.invoke('remove-book-from-series', payload) as Promise<boolean>,
+
+  reorderSeriesBooks: (payload: { seriesId: string, orderedBookIds: string[] }) =>
+    window.ipcRenderer.invoke('reorder-series-books', payload) as Promise<boolean>,
     
   addPriceHistory: (history: Partial<PriceHistory>) => 
     window.ipcRenderer.invoke('add-price-history', history) as Promise<PriceHistory>,

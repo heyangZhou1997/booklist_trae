@@ -10,7 +10,11 @@ interface BookState {
   
   fetchBooks: (status?: string) => Promise<void>
   fetchSeries: () => Promise<void>
-  addSeries: (series: Partial<Series>) => Promise<void>
+  addSeries: (series: Partial<Series>) => Promise<Series>
+  updateSeries: (series: Partial<Series> & { id: string }) => Promise<Series>
+  addBookToSeries: (seriesId: string, bookId: string) => Promise<void>
+  removeBookFromSeries: (seriesId: string, bookId: string) => Promise<void>
+  reorderSeriesBooks: (seriesId: string, orderedBookIds: string[]) => Promise<void>
   addBook: (book: Partial<Book>) => Promise<Book & { isExisting?: boolean }>
   updateBook: (id: string, updates: Partial<Book>) => Promise<void>
   deleteBook: (id: string) => Promise<void>
@@ -67,10 +71,34 @@ export const useBookStore = create<BookState>((set, get) => ({
     try {
       const newSeries = await api.addSeries(seriesData)
       set(state => ({ series: [newSeries, ...state.series] }))
+      return newSeries
     } catch (error) {
       console.error('Failed to add series', error)
       throw error
     }
+  },
+
+  updateSeries: async (seriesData) => {
+    try {
+      const updated = await api.updateSeries(seriesData)
+      set(state => ({ series: state.series.map(s => (s.id === updated.id ? updated : s)) }))
+      return updated
+    } catch (error) {
+      console.error('Failed to update series', error)
+      throw error
+    }
+  },
+
+  addBookToSeries: async (seriesId, bookId) => {
+    await api.addBookToSeries({ seriesId, bookId })
+  },
+
+  removeBookFromSeries: async (seriesId, bookId) => {
+    await api.removeBookFromSeries({ seriesId, bookId })
+  },
+
+  reorderSeriesBooks: async (seriesId, orderedBookIds) => {
+    await api.reorderSeriesBooks({ seriesId, orderedBookIds })
   },
 
   addBook: async (bookData) => {

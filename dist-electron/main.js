@@ -37,6 +37,8 @@ function initDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       description TEXT,
+      author TEXT,
+      sort_mode TEXT DEFAULT 'publish_year',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -80,6 +82,14 @@ function initDb() {
   }
   try {
     db.exec("ALTER TABLE books ADD COLUMN list_price DECIMAL(10,2)");
+  } catch (e) {
+  }
+  try {
+    db.exec("ALTER TABLE series ADD COLUMN author TEXT");
+  } catch (e) {
+  }
+  try {
+    db.exec("ALTER TABLE series ADD COLUMN sort_mode TEXT DEFAULT 'publish_year'");
   } catch (e) {
   }
   return db;
@@ -1110,12 +1120,72 @@ function setupIpc() {
     return id;
   });
   electron.ipcMain.handle("get-series", () => {
-    return db2.prepare("SELECT * FROM series ORDER BY created_at DESC").all();
+    return db2.prepare("SELECT id, name, author, sort_mode, created_at FROM series ORDER BY created_at DESC").all();
   });
-  electron.ipcMain.handle("add-series", (event, { name, description }) => {
+  electron.ipcMain.handle("add-series", (event, { name, author }) => {
     const id = crypto.randomUUID();
-    db2.prepare("INSERT INTO series (id, name, description) VALUES (?, ?, ?)").run(id, name, description);
-    return { id, name, description };
+    db2.prepare("INSERT INTO series (id, name, author) VALUES (?, ?, ?)").run(id, name, author || null);
+    return db2.prepare("SELECT id, name, author, sort_mode, created_at FROM series WHERE id = ?").get(id);
+  });
+  electron.ipcMain.handle("update-series", (event, { id, name, author }) => {
+    const series = db2.prepare("SELECT id FROM series WHERE id = ?").get(id);
+    if (!series) throw new Error("SERIES_NOT_FOUND");
+    const n = (name || "").toString().trim();
+    if (!n) throw new Error("SERIES_NAME_REQUIRED");
+    const a = author === void 0 || author === null ? null : (author || "").toString().trim() || null;
+    db2.prepare("UPDATE series SET name = ?, author = ? WHERE id = ?").run(n, a, id);
+    return db2.prepare("SELECT id, name, author, sort_mode, created_at FROM series WHERE id = ?").get(id);
+  });
+  electron.ipcMain.handle("get-series-with-books", () => {
+    const seriesList = db2.prepare("SELECT id, name, author, sort_mode, created_at FROM series ORDER BY created_at DESC").all();
+    const getBooksForSeries = (s) => {
+      const sortMode = (s.sort_mode || "publish_year").toString();
+      const orderClause = sortMode === "manual" ? "ORDER BY COALESCE(sb.order_index, 999999) ASC, b.created_at ASC" : "ORDER BY COALESCE(b.publish_year, 999999) ASC, b.created_at ASC";
+      return db2.prepare(
+        `
+          SELECT b.*
+          FROM series_books sb
+          JOIN books b ON b.id = sb.book_id
+          WHERE sb.series_id = ?
+          ${orderClause}
+        `
+      ).all(s.id);
+    };
+    return seriesList.map((s) => ({ ...s, books: getBooksForSeries(s) }));
+  });
+  electron.ipcMain.handle("add-book-to-series", (event, { seriesId, bookId }) => {
+    const series = db2.prepare("SELECT id, sort_mode FROM series WHERE id = ?").get(seriesId);
+    if (!series) throw new Error("SERIES_NOT_FOUND");
+    const id = crypto.randomUUID();
+    let orderIndex = null;
+    if ((series.sort_mode || "publish_year") === "manual") {
+      const row = db2.prepare("SELECT MAX(order_index) as maxOrder FROM series_books WHERE series_id = ?").get(seriesId);
+      const maxOrder = (row == null ? void 0 : row.maxOrder) === null || (row == null ? void 0 : row.maxOrder) === void 0 ? 0 : Number(row.maxOrder);
+      orderIndex = Number.isFinite(maxOrder) ? maxOrder + 1 : 1;
+    }
+    db2.prepare("INSERT OR IGNORE INTO series_books (id, series_id, book_id, order_index) VALUES (?, ?, ?, ?)").run(
+      id,
+      seriesId,
+      bookId,
+      orderIndex
+    );
+    return true;
+  });
+  electron.ipcMain.handle("remove-book-from-series", (event, { seriesId, bookId }) => {
+    db2.prepare("DELETE FROM series_books WHERE series_id = ? AND book_id = ?").run(seriesId, bookId);
+    return true;
+  });
+  electron.ipcMain.handle("reorder-series-books", (event, { seriesId, orderedBookIds }) => {
+    if (!Array.isArray(orderedBookIds)) throw new Error("INVALID_ORDER");
+    const tx = db2.transaction(() => {
+      db2.prepare("UPDATE series SET sort_mode = 'manual' WHERE id = ?").run(seriesId);
+      const stmt = db2.prepare("UPDATE series_books SET order_index = ? WHERE series_id = ? AND book_id = ?");
+      orderedBookIds.forEach((bookId, idx) => {
+        stmt.run(idx + 1, seriesId, bookId);
+      });
+    });
+    tx();
+    return true;
   });
   electron.ipcMain.handle("add-price-history", (event, history) => {
     const id = crypto.randomUUID();

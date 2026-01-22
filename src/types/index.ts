@@ -25,7 +25,8 @@ export interface Book {
 export interface Series {
   id: string
   name: string
-  description?: string
+  author?: string
+  sort_mode?: 'publish_year' | 'manual'
   created_at: string
 }
 

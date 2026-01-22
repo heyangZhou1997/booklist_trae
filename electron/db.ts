@@ -47,6 +47,8 @@ export function initDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       description TEXT,
+      author TEXT,
+      sort_mode TEXT DEFAULT 'publish_year',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -98,6 +100,18 @@ export function initDb() {
 
     try {
       db.exec("ALTER TABLE books ADD COLUMN list_price DECIMAL(10,2)");
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      db.exec("ALTER TABLE series ADD COLUMN author TEXT");
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      db.exec("ALTER TABLE series ADD COLUMN sort_mode TEXT DEFAULT 'publish_year'");
     } catch (e) {
       // ignore
     }
