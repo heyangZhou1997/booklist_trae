@@ -22,6 +22,7 @@ export function Search() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchBook[]>([])
   const [loading, setLoading] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(3)
   const { addBook } = useBookStore()
   const navigate = useNavigate()
 
@@ -62,6 +63,7 @@ export function Search() {
     try {
       const data = await api.searchBooks(query)
       setResults(Array.isArray(data) ? data : [])
+      setVisibleCount(3)
     } catch (error) {
       console.error(error)
     } finally {
@@ -122,7 +124,7 @@ export function Search() {
         </div>
         
         <div className="space-y-4">
-          {results.map((book, index) => (
+          {results.slice(0, visibleCount).map((book, index) => (
             <div key={index} className="bg-white p-4 rounded-lg shadow-sm border flex gap-4 hover:shadow-md transition-shadow">
               {book.coverUrl ? (
                 <img src={book.coverUrl} alt={book.title} className="w-24 h-36 object-cover rounded shadow flex-shrink-0" />
@@ -163,6 +165,14 @@ export function Search() {
               </div>
             </div>
           ))}
+          {results.length > visibleCount && (
+            <button
+              className="w-full py-3 text-sm text-slate-500 hover:text-orange-600 hover:bg-orange-50 border border-dashed rounded-lg transition-colors"
+              onClick={() => setVisibleCount(c => c + 5)}
+            >
+              ↓ 点击加载更多
+            </button>
+          )}
           {results.length === 0 && !loading && query && (
              <div className="text-center text-slate-500 py-10">未找到相关书籍</div>
           )}

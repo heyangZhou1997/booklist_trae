@@ -18,10 +18,23 @@ export async function searchGoogleBooks(query: string): Promise<SearchResult[]> 
   if (!q) return []
 
   const suggestResults = await searchDoubanSuggest(q)
-  if (suggestResults.length > 0) return suggestResults
+  if (suggestResults.length >= 3) return suggestResults
 
   const htmlResults = await searchDoubanHtml(q)
-  return htmlResults
+  const merged: SearchResult[] = []
+  const seen = new Set<string>()
+
+  const pushUnique = (r: SearchResult) => {
+    const key = (r.detailUrl || `${r.title}|${r.author}`).toString()
+    if (seen.has(key)) return
+    seen.add(key)
+    merged.push(r)
+  }
+
+  suggestResults.forEach(pushUnique)
+  htmlResults.forEach(pushUnique)
+
+  return merged.slice(0, 20)
 }
 
 function createHiddenWindow() {

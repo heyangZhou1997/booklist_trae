@@ -94,9 +94,19 @@ async function searchGoogleBooks(query) {
   const q = query.trim();
   if (!q) return [];
   const suggestResults = await searchDoubanSuggest(q);
-  if (suggestResults.length > 0) return suggestResults;
+  if (suggestResults.length >= 3) return suggestResults;
   const htmlResults = await searchDoubanHtml(q);
-  return htmlResults;
+  const merged = [];
+  const seen = /* @__PURE__ */ new Set();
+  const pushUnique = (r) => {
+    const key = (r.detailUrl || `${r.title}|${r.author}`).toString();
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(r);
+  };
+  suggestResults.forEach(pushUnique);
+  htmlResults.forEach(pushUnique);
+  return merged.slice(0, 20);
 }
 function createHiddenWindow() {
   const win2 = new electron.BrowserWindow({
@@ -367,10 +377,10 @@ function parseJdMobilePrice(html) {
   const priceMatch = html.match(/"jdprice_amount"\s*:\s*"([\d.]+)"/) || html.match(/"jdPrice"\s*:\s*"([\d.]+)"/);
   const price = priceMatch ? parseFloat(priceMatch[1]) : void 0;
   const originalMatch = html.match(/"salePrice"\s*:\s*"([\d.]+)"/) || html.match(/"originPrice"\s*:\s*"([\d.]+)"/) || html.match(/"ORIGINAL"\s*:\s*\{[^}]*"salePrice"\s*:\s*"([\d.]+)"/);
-  const originalPrice = originalMatch ? parseFloat(originalMatch[1]) : void 0;
+  originalMatch ? parseFloat(originalMatch[1]) : void 0;
   return {
     price: price && isFinite(price) ? price : void 0,
-    originalPrice: originalPrice && isFinite(originalPrice) ? originalPrice : void 0,
+    originalPrice: void 0,
     shopName
   };
 }
@@ -421,7 +431,6 @@ async function fetchJdPriceBySku(skuOrUrl) {
   if (p && isFinite(p) && p > 0) {
     const info2 = {
       price: p,
-      originalPrice: op && isFinite(op) && op > 0 ? op : void 0,
       inStock: true,
       isSelfOperated: true,
       url: `https://item.jd.com/${sku}.html`,
@@ -464,7 +473,6 @@ async function fetchJdPriceBySku(skuOrUrl) {
     return { noPriceReason: "no_self", debug };
   }
   const mp = parsed.price || 0;
-  const mop = parsed.originalPrice || 0;
   if (!mp || !isFinite(mp) || mp <= 0) {
     debug.stage = "no_price";
     console.log("[JD]", JSON.stringify(debug));
@@ -472,7 +480,6 @@ async function fetchJdPriceBySku(skuOrUrl) {
   }
   const info = {
     price: mp,
-    originalPrice: mop && isFinite(mop) && mop > 0 ? mop : void 0,
     inStock: true,
     isSelfOperated: true,
     url: `https://item.jd.com/${sku}.html`,
@@ -603,39 +610,22 @@ async function fetchJdPriceBySkuViaPcWindowInternal(sku, interactive) {
               if (m3) return parseFloat(m3[1]);
               return 0;
             };
-            const pickOriginal = () => {
-              const el =
-                document.querySelector('.p-price del') ||
-                document.querySelector('.summary-price del') ||
-                document.querySelector('.p-price .op') ||
-                document.querySelector('.price del') ||
-                document.querySelector('[class*="price"] del');
-              const raw = el ? ((el.innerText || el.textContent || '') + '') : '';
-              const m1 = raw.match(/(\\d+(?:\\.\\d{1,2})?)/);
-              if (m1) return parseFloat(m1[1]);
-              const bodyText = (document.body ? (document.body.innerText || document.body.textContent || '') : '').toString();
-              const m2 = bodyText.match(/(?:定价|原价|标价)[^¥￥\\d]{0,12}[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)/);
-              if (m2) return parseFloat(m2[1]);
-              return 0;
-            };
             const shopText = () => {
               const el = document.querySelector('#crumb-wrap') || document.querySelector('#popbox') || document.body;
               const txt = el ? ((el.innerText || el.textContent || '') + '') : '';
               return txt.replace(/\\s+/g,' ').slice(0, 500);
             };
             const price = pick();
-            const originalPrice = pickOriginal();
-            return { price, originalPrice, shopText: shopText() };
+            return { price, shopText: shopText() };
           })()
         `);
         return {
           url: currentUrl,
           price: (data == null ? void 0 : data.price) ? Number(data.price) : 0,
-          originalPrice: (data == null ? void 0 : data.originalPrice) ? Number(data.originalPrice) : 0,
           shopText: ((data == null ? void 0 : data.shopText) || "").toString()
         };
       } catch {
-        return { url: "", price: 0, originalPrice: 0, shopText: "" };
+        return { url: "", price: 0, shopText: "" };
       }
     };
     const result = await new Promise((resolve) => {
@@ -643,24 +633,24 @@ async function fetchJdPriceBySkuViaPcWindowInternal(sku, interactive) {
       const timer = setInterval(async () => {
         if (win2.isDestroyed()) {
           clearInterval(timer);
-          resolve({ price: 0, originalPrice: 0, shopText: "", lastUrl });
+          resolve({ price: 0, shopText: "", lastUrl });
           return;
         }
         const snapshot = await extractOnce();
         if (snapshot.url) lastUrl = snapshot.url;
         if (snapshot.price > 0 && isFinite(snapshot.price)) {
           clearInterval(timer);
-          resolve({ price: snapshot.price, originalPrice: snapshot.originalPrice, shopText: snapshot.shopText, lastUrl });
+          resolve({ price: snapshot.price, shopText: snapshot.shopText, lastUrl });
           return;
         }
         if (Date.now() - start > maxWaitMs) {
           clearInterval(timer);
-          resolve({ price: 0, originalPrice: snapshot.originalPrice, shopText: snapshot.shopText, lastUrl });
+          resolve({ price: 0, shopText: snapshot.shopText, lastUrl });
         }
       }, 600);
       win2.on("closed", () => {
         clearInterval(timer);
-        resolve({ price: 0, originalPrice: 0, shopText: "", lastUrl });
+        resolve({ price: 0, shopText: "", lastUrl });
       });
     });
     if (result.price <= 0) {
@@ -669,13 +659,12 @@ async function fetchJdPriceBySkuViaPcWindowInternal(sku, interactive) {
     }
     const info = {
       price: result.price,
-      originalPrice: result.originalPrice && isFinite(result.originalPrice) && result.originalPrice > result.price ? result.originalPrice : void 0,
       inStock: true,
       isSelfOperated: true,
       url,
       sku
     };
-    console.log("[JD]", JSON.stringify({ sku, stage: interactive ? "pc_interactive_ok" : "pc_hidden_ok", price: result.price, originalPrice: result.originalPrice, lastUrl: result.lastUrl }));
+    console.log("[JD]", JSON.stringify({ sku, stage: interactive ? "pc_interactive_ok" : "pc_hidden_ok", price: result.price, lastUrl: result.lastUrl }));
     return info;
   } finally {
     if (!win2.isDestroyed()) win2.destroy();
@@ -934,7 +923,6 @@ async function fetchJdPrice(isbn) {
         return { noPriceReason: "no_self", debug };
       }
       const mp = parsed.price || 0;
-      const mop = parsed.originalPrice || 0;
       if (!mp || !isFinite(mp) || mp <= 0) {
         debug.stage = "no_price";
         console.log("[JD]", JSON.stringify(debug));
@@ -942,7 +930,6 @@ async function fetchJdPrice(isbn) {
       }
       const info2 = {
         price: mp,
-        originalPrice: mop && isFinite(mop) && mop > 0 ? mop : void 0,
         inStock: true,
         isSelfOperated: true,
         url: `https://item.jd.com/${finalSku}.html`,
@@ -956,7 +943,6 @@ async function fetchJdPrice(isbn) {
     }
     const info = {
       price: p,
-      originalPrice: op && isFinite(op) && op > 0 ? op : void 0,
       inStock: true,
       isSelfOperated: true,
       url: `https://item.jd.com/${finalSku}.html`,

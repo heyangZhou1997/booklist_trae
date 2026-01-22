@@ -157,8 +157,7 @@ export const useBookStore = create<BookState>((set, get) => ({
             200000
           )
           if (interactive && !interactive.authRequired && !interactive.noPriceReason) {
-            const originalFromJd = interactive.originalPrice ?? null
-            const baseOriginal = originalFromJd ?? bookListPrice
+            const baseOriginal = bookListPrice
             if (interactive.sku) {
               get().updateBook(bookId, { jd_sku: interactive.sku, jd_url: interactive.url }).catch(() => {})
             }
@@ -167,7 +166,7 @@ export const useBookStore = create<BookState>((set, get) => ({
               price: interactive.price,
               original_price: baseOriginal,
               in_stock: interactive.inStock,
-              discount_rate: baseOriginal ? Math.round((1 - interactive.price / baseOriginal) * 100) : 0
+              discount_rate: baseOriginal && baseOriginal > interactive.price ? Math.round((1 - interactive.price / baseOriginal) * 100) : 0
             })
             set(state => ({
               prices: { ...state.prices, [bookId]: history }
@@ -201,8 +200,7 @@ export const useBookStore = create<BookState>((set, get) => ({
               : '暂时无法获取京东价格，建议手动绑定商品链接。',
           }
         }
-        const retriedOriginalFromJd = retried.originalPrice ?? null
-        const retriedBaseOriginal = retriedOriginalFromJd ?? bookListPrice
+        const retriedBaseOriginal = bookListPrice
         if (retried.sku) {
           get().updateBook(bookId, { jd_sku: retried.sku, jd_url: retried.url }).catch(() => {})
         }
@@ -211,7 +209,7 @@ export const useBookStore = create<BookState>((set, get) => ({
           price: retried.price,
           original_price: retriedBaseOriginal,
           in_stock: retried.inStock,
-          discount_rate: retriedBaseOriginal ? Math.round((1 - retried.price / retriedBaseOriginal) * 100) : 0
+          discount_rate: retriedBaseOriginal && retriedBaseOriginal > retried.price ? Math.round((1 - retried.price / retriedBaseOriginal) * 100) : 0
         })
         set(state => ({
           prices: { ...state.prices, [bookId]: history }
@@ -235,8 +233,7 @@ export const useBookStore = create<BookState>((set, get) => ({
         }
       }
       if (priceInfo) {
-        const originalFromJd = priceInfo.originalPrice ?? null
-        const baseOriginal = originalFromJd ?? bookListPrice
+        const baseOriginal = bookListPrice
         if (priceInfo.sku) {
           get().updateBook(bookId, { jd_sku: priceInfo.sku, jd_url: priceInfo.url }).catch(() => {})
         }
@@ -246,7 +243,7 @@ export const useBookStore = create<BookState>((set, get) => ({
           price: priceInfo.price,
           original_price: baseOriginal,
           in_stock: priceInfo.inStock,
-          discount_rate: baseOriginal ? Math.round((1 - priceInfo.price / baseOriginal) * 100) : 0
+          discount_rate: baseOriginal && baseOriginal > priceInfo.price ? Math.round((1 - priceInfo.price / baseOriginal) * 100) : 0
         })
         // Update local state
         set(state => ({

@@ -93,7 +93,7 @@ function parseJdMobilePrice(html: string): { price?: number, originalPrice?: num
 
   return {
     price: price && isFinite(price) ? price : undefined,
-    originalPrice: originalPrice && isFinite(originalPrice) ? originalPrice : undefined,
+    originalPrice: undefined,
     shopName,
   }
 }
@@ -156,7 +156,6 @@ export async function fetchJdPriceBySku(skuOrUrl: string): Promise<JDFetchResult
   if (p && isFinite(p) && p > 0) {
     const info: JDPriceInfo = {
       price: p,
-      originalPrice: op && isFinite(op) && op > 0 ? op : undefined,
       inStock: true,
       isSelfOperated: true,
       url: `https://item.jd.com/${sku}.html`,
@@ -214,7 +213,6 @@ export async function fetchJdPriceBySku(skuOrUrl: string): Promise<JDFetchResult
 
   const info: JDPriceInfo = {
     price: mp,
-    originalPrice: mop && isFinite(mop) && mop > 0 ? mop : undefined,
     inStock: true,
     isSelfOperated: true,
     url: `https://item.jd.com/${sku}.html`,
@@ -361,66 +359,49 @@ async function fetchJdPriceBySkuViaPcWindowInternal(sku: string, interactive: bo
               if (m3) return parseFloat(m3[1]);
               return 0;
             };
-            const pickOriginal = () => {
-              const el =
-                document.querySelector('.p-price del') ||
-                document.querySelector('.summary-price del') ||
-                document.querySelector('.p-price .op') ||
-                document.querySelector('.price del') ||
-                document.querySelector('[class*="price"] del');
-              const raw = el ? ((el.innerText || el.textContent || '') + '') : '';
-              const m1 = raw.match(/(\\d+(?:\\.\\d{1,2})?)/);
-              if (m1) return parseFloat(m1[1]);
-              const bodyText = (document.body ? (document.body.innerText || document.body.textContent || '') : '').toString();
-              const m2 = bodyText.match(/(?:定价|原价|标价)[^¥￥\\d]{0,12}[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)/);
-              if (m2) return parseFloat(m2[1]);
-              return 0;
-            };
             const shopText = () => {
               const el = document.querySelector('#crumb-wrap') || document.querySelector('#popbox') || document.body;
               const txt = el ? ((el.innerText || el.textContent || '') + '') : '';
               return txt.replace(/\\s+/g,' ').slice(0, 500);
             };
             const price = pick();
-            const originalPrice = pickOriginal();
-            return { price, originalPrice, shopText: shopText() };
+            return { price, shopText: shopText() };
           })()
         `)
         return {
           url: currentUrl,
           price: data?.price ? Number(data.price) : 0,
-          originalPrice: data?.originalPrice ? Number(data.originalPrice) : 0,
           shopText: (data?.shopText || '').toString(),
         }
       } catch {
-        return { url: '', price: 0, originalPrice: 0, shopText: '' }
+        return { url: '', price: 0, shopText: '' }
       }
     }
 
-    const result = await new Promise<{ price: number, originalPrice: number, shopText: string, lastUrl: string }>((resolve) => {
+    const result = await new Promise<{ price: number, shopText: string, lastUrl: string }>((resolve) => {
       let lastUrl = ''
       const timer = setInterval(async () => {
         if (win.isDestroyed()) {
           clearInterval(timer)
-          resolve({ price: 0, originalPrice: 0, shopText: '', lastUrl })
+          resolve({ price: 0, shopText: '', lastUrl })
           return
         }
         const snapshot = await extractOnce()
         if (snapshot.url) lastUrl = snapshot.url
         if (snapshot.price > 0 && isFinite(snapshot.price)) {
           clearInterval(timer)
-          resolve({ price: snapshot.price, originalPrice: snapshot.originalPrice, shopText: snapshot.shopText, lastUrl })
+          resolve({ price: snapshot.price, shopText: snapshot.shopText, lastUrl })
           return
         }
         if (Date.now() - start > maxWaitMs) {
           clearInterval(timer)
-          resolve({ price: 0, originalPrice: snapshot.originalPrice, shopText: snapshot.shopText, lastUrl })
+          resolve({ price: 0, shopText: snapshot.shopText, lastUrl })
         }
       }, 600)
 
       win.on('closed', () => {
         clearInterval(timer)
-        resolve({ price: 0, originalPrice: 0, shopText: '', lastUrl })
+        resolve({ price: 0, shopText: '', lastUrl })
       })
     })
 
@@ -431,13 +412,12 @@ async function fetchJdPriceBySkuViaPcWindowInternal(sku: string, interactive: bo
 
     const info: JDPriceInfo = {
       price: result.price,
-      originalPrice: result.originalPrice && isFinite(result.originalPrice) && result.originalPrice > result.price ? result.originalPrice : undefined,
       inStock: true,
       isSelfOperated: true,
       url,
       sku,
     }
-    console.log('[JD]', JSON.stringify({ sku, stage: interactive ? 'pc_interactive_ok' : 'pc_hidden_ok', price: result.price, originalPrice: result.originalPrice, lastUrl: result.lastUrl }))
+    console.log('[JD]', JSON.stringify({ sku, stage: interactive ? 'pc_interactive_ok' : 'pc_hidden_ok', price: result.price, lastUrl: result.lastUrl }))
     return info
   } finally {
     if (!win.isDestroyed()) win.destroy()
@@ -725,7 +705,6 @@ export async function fetchJdPrice(isbn: string): Promise<JDFetchResult | null> 
 
       const info: JDPriceInfo = {
         price: mp,
-        originalPrice: mop && isFinite(mop) && mop > 0 ? mop : undefined,
         inStock: true,
         isSelfOperated: true,
         url: `https://item.jd.com/${finalSku}.html`,
@@ -740,7 +719,6 @@ export async function fetchJdPrice(isbn: string): Promise<JDFetchResult | null> 
 
     const info: JDPriceInfo = {
       price: p,
-      originalPrice: op && isFinite(op) && op > 0 ? op : undefined,
       inStock: true,
       isSelfOperated: true,
       url: `https://item.jd.com/${finalSku}.html`,
