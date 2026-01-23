@@ -13,7 +13,7 @@ export interface Book {
   jd_sku?: string
   jd_url?: string
   list_price?: number
-  status: 'unpurchased' | 'reading' | 'finished'
+  status: 'unpurchased' | 'unread' | 'reading' | 'finished'
   purchase_date?: string
   start_reading_date?: string
   finish_reading_date?: string

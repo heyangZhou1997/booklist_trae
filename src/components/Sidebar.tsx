@@ -1,12 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, ShoppingCart, Search, Layers, Settings, Home } from 'lucide-react'
+import { BookOpen, ShoppingCart, Layers, Settings, Home } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 const navItems = [
   { href: '/', label: '概览', icon: Home },
   { href: '/unpurchased', label: '待购清单', icon: ShoppingCart },
   { href: '/purchased', label: '我的书架', icon: BookOpen },
-  { href: '/search', label: '搜索添加', icon: Search },
   { href: '/series', label: '系列管理', icon: Layers },
   { href: '/settings', label: '设置', icon: Settings },
 ]

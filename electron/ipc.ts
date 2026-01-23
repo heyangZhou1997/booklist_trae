@@ -257,6 +257,12 @@ export function setupIpc() {
      `).all(...bookIds)
   })
 
+  ipcMain.handle('clear-price-history', (event, bookId) => {
+    if (!bookId) return true
+    db.prepare('DELETE FROM price_history WHERE book_id = ?').run(String(bookId))
+    return true
+  })
+
   // --- External Services ---
   ipcMain.handle('search-books', async (event, query) => {
     return searchGoogleBooks(query)

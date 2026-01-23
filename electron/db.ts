@@ -31,11 +31,13 @@ export function initDb() {
       description TEXT,
       publish_year INTEGER,
       page_count INTEGER,
-      status TEXT CHECK (status IN ('unpurchased', 'reading', 'finished')) DEFAULT 'unpurchased',
+      status TEXT CHECK (status IN ('unpurchased', 'unread', 'reading', 'finished')) DEFAULT 'unpurchased',
       purchase_date DATE,
       start_reading_date DATE,
       finish_reading_date DATE,
       reading_progress INTEGER DEFAULT 0 CHECK (reading_progress >= 0 AND reading_progress <= 100),
+      jd_sku TEXT,
+      jd_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -114,6 +116,58 @@ export function initDb() {
       db.exec("ALTER TABLE series ADD COLUMN sort_mode TEXT DEFAULT 'publish_year'");
     } catch (e) {
       // ignore
+    }
+
+    try {
+      const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='books'").get() as any
+      const sql = (row?.sql || '').toString()
+      if (sql.includes("status IN ('unpurchased', 'reading', 'finished')")) {
+        db.exec('PRAGMA foreign_keys = OFF;')
+        db.exec('BEGIN;')
+        db.exec(`
+          CREATE TABLE books_new (
+            id TEXT PRIMARY KEY,
+            isbn TEXT UNIQUE,
+            title TEXT NOT NULL,
+            author TEXT NOT NULL,
+            translator TEXT,
+            publisher TEXT,
+            list_price DECIMAL(10,2),
+            cover_url TEXT,
+            description TEXT,
+            publish_year INTEGER,
+            page_count INTEGER,
+            status TEXT CHECK (status IN ('unpurchased', 'unread', 'reading', 'finished')) DEFAULT 'unpurchased',
+            purchase_date DATE,
+            start_reading_date DATE,
+            finish_reading_date DATE,
+            reading_progress INTEGER DEFAULT 0 CHECK (reading_progress >= 0 AND reading_progress <= 100),
+            jd_sku TEXT,
+            jd_url TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+        `)
+        const cols = (db.prepare("PRAGMA table_info('books')").all() as any[]).map(c => c.name)
+        const targetCols = [
+          'id','isbn','title','author','translator','publisher','list_price','cover_url','description',
+          'publish_year','page_count','status','purchase_date','start_reading_date','finish_reading_date',
+          'reading_progress','jd_sku','jd_url','created_at','updated_at'
+        ]
+        const copyCols = targetCols.filter(c => cols.includes(c))
+        if (copyCols.length > 0) {
+          db.exec(`INSERT INTO books_new (${copyCols.join(',')}) SELECT ${copyCols.join(',')} FROM books;`)
+        }
+        db.exec('DROP TABLE books;')
+        db.exec('ALTER TABLE books_new RENAME TO books;')
+        db.exec('CREATE INDEX IF NOT EXISTS idx_books_status ON books(status);')
+        db.exec('CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);')
+        db.exec('COMMIT;')
+        db.exec('PRAGMA foreign_keys = ON;')
+      }
+    } catch (e) {
+      try { db.exec('ROLLBACK;') } catch {}
+      try { db.exec('PRAGMA foreign_keys = ON;') } catch {}
     }
   
   return db

@@ -55,6 +55,9 @@ export const api = {
   getLatestPrices: (bookIds: string[]) =>
     window.ipcRenderer.invoke('get-latest-prices', bookIds) as Promise<PriceHistory[]>,
 
+  clearPriceHistory: (bookId: string) =>
+    window.ipcRenderer.invoke('clear-price-history', bookId) as Promise<boolean>,
+
   searchBooks: (query: string) =>
     window.ipcRenderer.invoke('search-books', query) as Promise<any[]>,
 

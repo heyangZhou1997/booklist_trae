@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useBookStore } from '../store/bookStore'
 import { RefreshCw, Loader2, Trash2, Link2, FolderPlus } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { InlineBookSearch } from '../components/InlineBookSearch'
 
 export function Unpurchased() {
-  const { books, fetchBooks, fetchSeries, series, addSeries, addBookToSeries, isLoading, prices, refreshPrice, deleteBook, updateBook } = useBookStore()
+  const { books, fetchBooks, fetchSeries, series, addSeries, addBookToSeries, clearPriceHistory, isLoading, prices, refreshPrice, deleteBook, updateBook } = useBookStore()
   const [refreshingIds, setRefreshingIds] = useState<Record<string, boolean>>({})
-  const [sortMode, setSortMode] = useState<'none' | 'discount_desc' | 'discount_asc' | 'price_desc' | 'price_asc'>('none')
+  const [sortMode, setSortMode] = useState<'discount_desc' | 'discount_asc' | 'price_desc' | 'price_asc'>('discount_desc')
   const [bindState, setBindState] = useState<{
     open: boolean
     bookId?: string
@@ -42,7 +43,6 @@ export function Unpurchased() {
   }, [fetchSeries])
 
   const sortedBooks = useMemo(() => {
-    if (sortMode === 'none') return books
     const arr = [...books]
     const getDiscount = (bookId: string) => {
       const p = prices[bookId]
@@ -143,18 +143,18 @@ export function Unpurchased() {
     const bookId = bindState.bookId
     if (!bookId) return
     await updateBook(bookId, { jd_sku: undefined, jd_url: undefined })
+    await clearPriceHistory(bookId)
     setBindState({ open: false, input: '' })
   }
 
-  const handleStatusChange = async (bookId: string, status: 'reading' | 'finished') => {
-      // 乐观更新 UI：先从当前列表中移除（因为当前是待购清单）
-      useBookStore.setState(state => ({
-          books: state.books.filter(b => b.id !== bookId)
-      }))
-      
-      // 调用 API 更新
-      const { updateBook } = useBookStore.getState()
-      await updateBook(bookId, { status, start_reading_date: new Date().toISOString() })
+  const handlePurchased = async (bookId: string) => {
+    useBookStore.setState(state => ({
+      books: state.books.filter(b => b.id !== bookId)
+    }))
+
+    const now = new Date().toISOString()
+    const { updateBook } = useBookStore.getState()
+    await updateBook(bookId, { status: 'unread', purchase_date: now })
   }
 
   return (
@@ -168,13 +168,15 @@ export function Unpurchased() {
             onChange={(e) => setSortMode(e.target.value as any)}
             className="rounded-md border px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-orange-200"
           >
-            <option value="none">默认</option>
-            <option value="discount_desc">折扣从高到低</option>
+            <option value="discount_desc">折扣从高到低（默认）</option>
             <option value="discount_asc">折扣从低到高</option>
             <option value="price_desc">现价从高到低</option>
             <option value="price_asc">现价从低到高</option>
           </select>
         </div>
+      </div>
+      <div className="mb-4">
+        <InlineBookSearch defaultStatus="unpurchased" />
       </div>
       {bindState.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -298,7 +300,7 @@ export function Unpurchased() {
 
             return (
               <div key={book.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-all p-2 flex gap-2 group">
-                <div className="relative w-[84px] h-[120px] flex-shrink-0 min-w-0">
+                <div className="relative w-[84px] h-[132px] flex-shrink-0 min-w-0">
                   <div className="w-full h-full bg-slate-100 rounded-md overflow-hidden">
                       {book.cover_url ? (
                         <img
@@ -334,22 +336,24 @@ export function Unpurchased() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleStatusChange(book.id, 'reading')
+                        handlePurchased(book.id)
                       }}
                       className="absolute inset-x-1 bottom-1 z-10 bg-blue-600 text-white text-[11px] py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-700"
                     >
-                      开始阅读
+                      已购买
                     </button>
                   </div>
 
-                <div className="min-w-0 flex-1 flex flex-col h-[120px]">
-                  <h3 className="font-bold text-sm line-clamp-1 leading-tight" title={book.title}>
+                <div className="min-w-0 flex-1 flex flex-col h-[132px]">
+                  <h3 className="font-bold text-[16px] line-clamp-1 leading-tight" title={book.title}>
                       {book.title}
                     </h3>
+                  <p className="text-xs text-slate-600 truncate mt-0.5" title={book.author}>
+                    {book.author}
+                  </p>
 
-                    <div className="mt-1 text-xs text-slate-600">
-                      <div className="space-y-0.5 h-[56px]">
-                        <p className="truncate" title={book.author}>{book.author}</p>
+                    <div className="mt-2 text-xs text-slate-600">
+                      <div className="space-y-0.5 h-[48px]">
                         <p className="truncate text-slate-500" title={book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}>
                           {book.publisher ? `出版社: ${book.publisher}` : '出版社: 无'}
                         </p>

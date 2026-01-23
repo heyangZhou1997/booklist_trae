@@ -22,6 +22,7 @@ interface BookState {
   // Price related
   prices: Record<string, PriceHistory> // bookId -> latest price
   fetchPrices: (bookIds: string[]) => Promise<void>
+  clearPriceHistory: (bookId: string) => Promise<void>
   refreshPrice: (
     bookId: string,
     isbn?: string,
@@ -150,6 +151,15 @@ export const useBookStore = create<BookState>((set, get) => ({
     } catch (error) {
       console.error('Failed to fetch prices', error)
     }
+  },
+
+  clearPriceHistory: async (bookId: string) => {
+    await api.clearPriceHistory(bookId)
+    set(state => {
+      const next = { ...state.prices }
+      delete next[bookId]
+      return { prices: next }
+    })
   },
 
   refreshPrice: async (bookId: string, isbn?: string, jdSku?: string) => {

@@ -372,10 +372,14 @@ export function Series() {
                           <div
                             className={cn(
                               'absolute -top-1 -left-1 text-[10px] font-bold px-1.5 py-0.5 rounded z-10',
-                              b.status === 'reading' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'
+                              b.status === 'reading'
+                                ? 'bg-blue-600 text-white'
+                                : b.status === 'finished'
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-slate-700 text-white'
                             )}
                           >
-                            {b.status === 'reading' ? '阅读中' : '已读完'}
+                            {b.status === 'reading' ? '阅读中' : b.status === 'finished' ? '已读完' : '待阅读'}
                           </div>
                         ) : (
                           (() => {
